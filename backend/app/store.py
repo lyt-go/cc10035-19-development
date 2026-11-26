@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.incident_scenario import install_incident_scenario
 from app.seed import SEED_ROWS
 
 
@@ -14,12 +15,21 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        install_incident_scenario(self._tables)
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        # 内部派工/证据表可以通过 rows() 读写，但不纳入18个业务模块概览。
+        return sorted(SEED_ROWS.keys())
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
+
+    def reset(self) -> None:
+        """恢复到种子 + 事故派工演示场景，便于测试隔离。"""
+        self._tables = {
+            name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
+        }
+        install_incident_scenario(self._tables)
 
     def find(self, module: str, entry_id: int) -> dict[str, Any] | None:
         for row in self.rows(module):

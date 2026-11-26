@@ -6,6 +6,14 @@
         <p class="page-desc">{{ meta.desc }}</p>
       </div>
       <div class="page-actions">
+        <RouterLink
+          v-if="meta.key === 'gateway_mgmt'"
+          class="btn primary"
+          data-testid="gateway-incident-dispatch-entry"
+          to="/gateway_mgmt/incident-dispatch"
+        >
+          从网关事故号快速派发补采
+        </RouterLink>
         <button class="btn primary" data-testid="open-create" type="button" @click="openCreate">
           登记{{ meta.entity }}
         </button>
@@ -90,6 +98,10 @@
       <span>共 {{ total }} 条{{ meta.name }}记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
+
+    <div v-if="meta.key === 'gateway_mgmt'" class="embedded-incident-dispatch">
+      <IncidentDispatchPanel />
+    </div>
   </section>
 </template>
 
@@ -104,6 +116,7 @@ import {
   runAction as applyAction,
 } from '@/api/backend-service'
 import type { EntryRow } from '@/data/types'
+import IncidentDispatchPanel from '@/views/IncidentDispatchView.vue'
 
 const props = defineProps<{ moduleKey: string }>()
 const meta = moduleMeta(props.moduleKey)
@@ -189,3 +202,11 @@ async function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.embedded-incident-dispatch {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 2px solid var(--border);
+}
+</style>

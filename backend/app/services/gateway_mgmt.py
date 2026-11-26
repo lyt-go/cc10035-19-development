@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.services.base import BaseModuleService
+from app.services.incident_dispatch import incident_dispatch_service
 from app.store import store
 
 CST = timezone(timedelta(hours=8))
@@ -301,3 +302,61 @@ class GatewayMgmtService(BaseModuleService):
                 "已注册关联设备数": len(devices),
             })
         return result
+
+    # ========== 网关事故 → 补采派工 ==========
+    # 网关管理页只做入口和查询，完整不变量在 IncidentDispatchService 中实现。
+
+    def list_gateway_incidents(self) -> list[dict[str, Any]]:
+        return incident_dispatch_service.list_incidents()
+
+    def get_incident_detail(self, incident_id: Any = None, **filters: Any) -> dict[str, Any]:
+        incident = incident_dispatch_service.get_incident(incident_id, **filters)
+        if incident is None:
+            return {"ok": False, "message": "网关事故不存在"}
+        incident_code = incident.get("事故编号")
+        return {
+            "ok": True,
+            "incident": incident,
+            "items": incident_dispatch_service.query_gaps(incident),
+            "dispatchable_items": incident_dispatch_service.query_dispatchable_gaps(incident),
+            "workbench": incident_dispatch_service.workbench(incident_code),
+        }
+
+    def query_incident_dispatchable_gaps(self, *args: Any, **kwargs: Any):
+        return incident_dispatch_service.query_dispatchable_gaps(*args, **kwargs)
+
+    get_dispatchable_gaps_for_incident = query_incident_dispatchable_gaps
+    list_dispatch_positions = query_incident_dispatchable_gaps
+
+    def create_dispatch_order_from_incident(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return incident_dispatch_service.create_dispatch_order(*args, **kwargs)
+
+    create_dispatch_order = create_dispatch_order_from_incident
+    create_gap_dispatch_order = create_dispatch_order_from_incident
+    dispatch_gap_recovery_from_incident = create_dispatch_order_from_incident
+
+    def claim_recovery_dispatch(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return incident_dispatch_service.claim_dispatch(*args, **kwargs)
+
+    claim_gap_dispatch_order = claim_recovery_dispatch
+    claim_dispatch_order = claim_recovery_dispatch
+
+    def get_recovery_dispatch_detail(self, order_id: Any) -> dict[str, Any] | None:
+        return incident_dispatch_service.get_dispatch_detail(order_id)
+
+    get_dispatch_detail = get_recovery_dispatch_detail
+
+    def refresh_recovery_dispatch(self, order_id: Any) -> dict[str, Any] | None:
+        return incident_dispatch_service.refresh_dispatch_detail(order_id)
+
+    refresh_dispatch_detail = refresh_recovery_dispatch
+
+    def incident_dispatch_workbench(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return incident_dispatch_service.workbench(*args, **kwargs)
+
+    get_dispatch_workbench = incident_dispatch_workbench
+
+    def receive_recovery_receipt(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return incident_dispatch_service.receive_receipt(*args, **kwargs)
+
+    receive_dispatch_receipt = receive_recovery_receipt

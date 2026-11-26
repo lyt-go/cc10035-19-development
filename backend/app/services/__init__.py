@@ -12,8 +12,13 @@ from app.services.downsample import DownsampleService
 from app.services.alarm_trigger import AlarmTriggerService
 from app.services.firmware_ota import FirmwareOtaService
 from app.services.gateway_mgmt import GatewayMgmtService
+from app.services.gateway_incident import GatewayIncidentService
 from app.services.shadow_dev import ShadowDevService
 from app.services.data_gap import DataGapService
+from app.services.incident_dispatch import IncidentDispatchService
+from app.services.recovery_dispatch import RecoveryDispatchService
+from app.services.gap_dispatch import GapDispatchService
+from app.services.gap_recovery import GapRecoveryService
 from app.services.batch_export import BatchExportService
 from app.services.rule_engine import RuleEngineService
 from app.services.edge_cache import EdgeCacheService
@@ -32,8 +37,13 @@ SERVICES: dict[str, BaseModuleService] = {
     "alarm_trigger": AlarmTriggerService(),
     "firmware_ota": FirmwareOtaService(),
     "gateway_mgmt": GatewayMgmtService(),
+    "gateway_incident": GatewayIncidentService(),
     "shadow_dev": ShadowDevService(),
     "data_gap": DataGapService(),
+    "incident_dispatch": IncidentDispatchService(),
+    "recovery_dispatch": RecoveryDispatchService(),
+    "gap_dispatch": GapDispatchService(),
+    "gap_recovery": GapRecoveryService(),
     "batch_export": BatchExportService(),
     "rule_engine": RuleEngineService(),
     "edge_cache": EdgeCacheService(),

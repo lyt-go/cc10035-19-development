@@ -1,7 +1,8 @@
 """跨模块数据流统一接口：暴露9组数据流的操作端点。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
+from typing import Any
 
 from app.services.cross_module import cross_service
 
@@ -77,9 +78,34 @@ def flow4_downsample_gap_check(
 def flow4_gap_recovery(
     device_id: str = Query(..., description="设备编号"),
     point_id: str = Query(..., description="测点编号"),
+    sample_time: str | None = None,
+    gateway_id: str | None = None,
 ):
     """显式触发断点补采。"""
-    return cross_service.trigger_gap_recovery(device_id, point_id)
+    return cross_service.trigger_gap_recovery(device_id, point_id, sample_time, gateway_id)
+
+
+@router.get("/flow4/incident-workbench")
+def flow4_incident_workbench(incident_id: str = Query(default="INC-G1-1400")):
+    """网关事故补采派工工作台。"""
+    return cross_service.gateway_incident_workbench(incident_id)
+
+
+@router.post("/flow4/incident-dispatch")
+def flow4_incident_dispatch(payload: dict[str, Any] = Body(default_factory=dict)):
+    """从事故明细领取并派发选中缺口。"""
+    return cross_service.dispatch_from_gateway_incident(
+        payload.get("incident_id") or payload.get("事故编号"),
+        payload.get("gap_ids") or payload.get("selected_gap_ids"),
+        **{k: v for k, v in payload.items() if k not in {"incident_id", "事故编号", "gap_ids", "selected_gap_ids"}},
+    )
+
+
+@router.post("/flow4/receipt")
+def flow4_receipt(payload: dict[str, Any] = Body(default_factory=dict)):
+    """迟到签收回调，关联单据共享完成证据和唯一读数。"""
+    request_id = payload.get("request_id") or payload.get("申请编号")
+    return cross_service.receive_recovery_receipt(request_id, payload)
 
 
 # ==================== Flow 5: 告警触发与联动规则 ====================

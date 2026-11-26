@@ -366,44 +366,65 @@ class CrossModuleService:
             "estimated_missing": estimated_missing,
         }
 
-    def trigger_gap_recovery(self, device_id: str, point_id: str) -> dict[str, Any]:
+    def trigger_gap_recovery(
+        self, device_id: str, point_id: str, sample_time: str | None = None,
+        gateway_id: str | None = None,
+    ) -> dict[str, Any]:
         """显式触发断点补采，基于设备上下线和降采样历史判断。
 
-        业务流程：
-        1. 查找设备状态
-        2. 查找该测点的断点记录
-        3. 查找降采样任务关联
-        4. 发起补采
+        实际幂等、同点合并和签收证据逻辑统一交给 IncidentDispatchService。
         """
+        from app.services.incident_dispatch import incident_dispatch_service
+
         data_gap_rows = store.rows("data_gap")
         downsample_rows = store.rows("downsample")
 
-        # 查找相关降采样任务
+        gap = incident_dispatch_service._resolve_gap(
+            gateway_id=gateway_id,
+            device_id=device_id,
+            point_id=point_id,
+            sample_time=sample_time,
+        )
+        if gap is None:
+            # 兼容旧调用：只给设备/测点时退回第一条匹配断点。
+            gaps = [
+                row for row in data_gap_rows
+                if row.get("设备编号") == device_id and row.get("测点编号") == point_id
+            ]
+            gap = gaps[0] if gaps else None
+
+        if gap is None:
+            return {"ok": False, "message": f"设备 {device_id} 测点 {point_id} 无断点记录"}
+
         related_tasks = [
             row for row in downsample_rows
             if row.get("源测点") == point_id and row.get("status") == "已完成"
         ]
+        result = incident_dispatch_service.initiate_single_recovery(gap)
+        result["gap_entry"] = gap
+        result["related_downsample_tasks"] = len(related_tasks)
+        return result
 
-        # 查找断点记录
-        gaps = [
-            row for row in data_gap_rows
-            if row.get("设备编号") == device_id and row.get("测点编号") == point_id
-        ]
+    # ---------- 网关事故 → 补采派工综合流程 ----------
+    # 具体状态机集中在 IncidentDispatchService，跨模块层只保留统一入口。
 
-        if not gaps:
-            return {"ok": False, "message": f"设备 {device_id} 测点 {point_id} 无断点记录"}
+    def gateway_incident_workbench(self, incident_id: str | None = None, **filters: Any) -> dict[str, Any]:
+        from app.services.incident_dispatch import incident_dispatch_service
+        return incident_dispatch_service.workbench(incident_id or "INC-G1-1400", **filters)
 
-        # 发起补采
-        gap = gaps[0]
-        gap["status"] = "补采中"
-        gap["pending"] = True
+    def dispatch_from_gateway_incident(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        from app.services.incident_dispatch import incident_dispatch_service
+        return incident_dispatch_service.claim_dispatch(*args, **kwargs)
 
-        return {
-            "ok": True,
-            "message": f"已发起断点补采：{gap.get('记录编号')}",
-            "gap_entry": gap,
-            "related_downsample_tasks": len(related_tasks),
-        }
+    create_dispatch_order_from_gateway_incident = dispatch_from_gateway_incident
+
+    def get_recovery_dispatch_detail(self, order_id: str) -> dict[str, Any] | None:
+        from app.services.incident_dispatch import incident_dispatch_service
+        return incident_dispatch_service.refresh_dispatch_detail(order_id)
+
+    def receive_recovery_receipt(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        from app.services.incident_dispatch import incident_dispatch_service
+        return incident_dispatch_service.receive_receipt(*args, **kwargs)
 
     # ========================
     # Flow 5: alarm_trigger + rule_engine → 告警触发与联动规则

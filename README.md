@@ -69,6 +69,29 @@ npm run dev
 | 数据流管道 | `data_stream` | 流管道 | 管道编号、输入源、处理算子链 |
 | 聚合分发 | `aggregate_sink` | 分发任务 | 任务编号、数据窗口、聚合函数 |
 
+## 事故补采派工
+
+网关管理页提供「从网关事故号快速派发补采」入口，也可直接访问
+`/incident-dispatch`（或 `/gateway_mgmt/incident-dispatch`）。
+
+内置验收场景：事故 `INC-G1-1400` 属于网关 `G1`，故障边界为 `14:00–14:10`；
+设备身份 `DEV-G1-D`（显示名 D）在 `14:02`、`14:05` 有两个缺口。邻站 `G2`
+存在同名设备 D（身份 `DEV-G2-D`）及同时刻缺口，但不会进入 G1 事故的可派列表。
+
+核心服务为 `backend/app/services/incident_dispatch.py`，并在
+`GatewayMgmtService` / `DataGapService` 上保留入口。关键接口：
+
+- `GET /api/incident-dispatch/workbench?incident_id=INC-G1-1400`
+- `GET /api/incident-dispatch/candidates?incident_id=INC-G1-1400`
+- `POST /api/incident-dispatch/dispatch`
+- `GET /api/incident-dispatch/orders/{派工单编号}`
+- `POST /api/incident-dispatch/receipts`
+
+服务端按「实际网关 + 设备身份 + 时刻」幂等合并单点申请与派工单；迟到签收形成
+同一份完成证据和唯一确认读数，工作台区分 `not_sent`（确实未发）、
+`outbound_pending`（已出站但仍需等候确认）和
+`completed_by_original`（已经由原申请完成）。
+
 ## 约定
 
 - 全部模块共享`frontend/src/views/WorkbenchView.vue|tsx`和一套资源路由。
